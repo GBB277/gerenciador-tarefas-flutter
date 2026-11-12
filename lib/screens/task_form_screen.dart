@@ -42,6 +42,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     super.dispose();
   }
 
+  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -74,7 +76,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir tarefa?'),
-        content: const Text('Essa ação não pode ser desfeita.'),
+        content: const Text('Você poderá desfazer logo em seguida.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -88,6 +90,54 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       ),
     );
     if (ok == true && mounted) Navigator.of(context).pop('delete');
+  }
+
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 8),
+      child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+    );
+  }
+
+  Widget _buildDueChips() {
+    final today = _dateOnly(DateTime.now());
+    final tomorrow = today.add(const Duration(days: 1));
+    final due = _dueDate == null ? null : _dateOnly(_dueDate!);
+    final isToday = due == today;
+    final isTomorrow = due == tomorrow;
+    final isCustom = due != null && !isToday && !isTomorrow;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ChoiceChip(
+          showCheckmark: false,
+          label: const Text('Sem prazo'),
+          selected: due == null,
+          onSelected: (_) => setState(() => _dueDate = null),
+        ),
+        ChoiceChip(
+          showCheckmark: false,
+          label: const Text('Hoje'),
+          selected: isToday,
+          onSelected: (_) => setState(() => _dueDate = today),
+        ),
+        ChoiceChip(
+          showCheckmark: false,
+          label: const Text('Amanhã'),
+          selected: isTomorrow,
+          onSelected: (_) => setState(() => _dueDate = tomorrow),
+        ),
+        ChoiceChip(
+          showCheckmark: false,
+          avatar: const Icon(Icons.event, size: 18),
+          label: Text(isCustom ? formatDate(due!) : 'Outra data'),
+          selected: isCustom,
+          onSelected: (_) => _pickDate(),
+        ),
+      ],
+    );
   }
 
   @override
@@ -107,13 +157,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             TextFormField(
               controller: _title,
+              autofocus: !_editing,
               textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
                 labelText: 'Título',
+                hintText: 'Ex.: Estudar para a prova',
+                prefixIcon: Icon(Icons.title),
                 border: OutlineInputBorder(),
               ),
               validator: (v) => (v == null || v.trim().isEmpty)
@@ -123,69 +177,64 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _description,
-              maxLines: 3,
+              minLines: 2,
+              maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Descrição (opcional)',
+                prefixIcon: Icon(Icons.notes),
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 20),
-            Text('Categoria', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
+            _sectionTitle('Categoria'),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final c in kCategories)
                   ChoiceChip(
+                    showCheckmark: false,
+                    avatar: Icon(categoryIcon(c), size: 18),
                     label: Text(c),
                     selected: _category == c,
                     onSelected: (_) => setState(() => _category = c),
                   ),
               ],
             ),
-            const SizedBox(height: 20),
-            Text('Prioridade', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            SegmentedButton<Priority>(
-              segments: [
-                for (final p in Priority.values)
-                  ButtonSegment(
-                    value: p,
-                    label: Text(p.label),
-                    icon: Icon(Icons.flag, color: priorityColor(p)),
-                  ),
-              ],
-              selected: {_priority},
-              onSelectionChanged: (s) => setState(() => _priority = s.first),
+            _sectionTitle('Prioridade'),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<Priority>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final p in Priority.values)
+                    ButtonSegment(
+                      value: p,
+                      label: Text(p.label),
+                      icon: Icon(Icons.flag, color: priorityColor(p)),
+                    ),
+                ],
+                selected: {_priority},
+                onSelectionChanged: (s) => setState(() => _priority = s.first),
+              ),
             ),
-            const SizedBox(height: 20),
-            Text('Prazo', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _pickDate,
-                  icon: const Icon(Icons.event),
-                  label: Text(_dueDate == null
-                      ? 'Definir data'
-                      : formatDate(_dueDate!)),
-                ),
-                if (_dueDate != null)
-                  IconButton(
-                    tooltip: 'Remover data',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => setState(() => _dueDate = null),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check),
-              label: Text(_editing ? 'Salvar alterações' : 'Criar tarefa'),
-            ),
+            _sectionTitle('Prazo'),
+            _buildDueChips(),
           ],
+        ),
+      ),
+      // Botão de salvar sempre visível, fixo na parte de baixo.
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+            ),
+            onPressed: _save,
+            icon: const Icon(Icons.check),
+            label: Text(_editing ? 'Salvar alterações' : 'Criar tarefa'),
+          ),
         ),
       ),
     );

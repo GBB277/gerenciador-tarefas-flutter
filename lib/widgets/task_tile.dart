@@ -13,10 +13,37 @@ Color priorityColor(Priority p) {
   }
 }
 
+IconData categoryIcon(String category) {
+  switch (category) {
+    case 'Trabalho':
+      return Icons.work_outline;
+    case 'Estudo':
+      return Icons.school_outlined;
+    case 'Pessoal':
+      return Icons.person_outline;
+    case 'Saúde':
+      return Icons.favorite_border;
+    default:
+      return Icons.label_outline;
+  }
+}
+
 String formatDate(DateTime d) {
   final dd = d.day.toString().padLeft(2, '0');
   final mm = d.month.toString().padLeft(2, '0');
   return '$dd/$mm/${d.year}';
+}
+
+/// "Hoje", "Amanhã", "Ontem" ou a data no formato dd/mm/aaaa.
+String friendlyDate(DateTime d) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(d.year, d.month, d.day);
+  final diff = day.difference(today).inDays;
+  if (diff == 0) return 'Hoje';
+  if (diff == 1) return 'Amanhã';
+  if (diff == -1) return 'Ontem';
+  return formatDate(d);
 }
 
 class TaskTile extends StatelessWidget {
@@ -31,77 +58,99 @@ class TaskTile extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onTap;
 
-  bool get _overdue {
-    if (task.done || task.dueDate == null) return false;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    return task.dueDate!.isBefore(today);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = priorityColor(task.priority);
+    final scheme = theme.colorScheme;
+    final pColor = priorityColor(task.priority);
+    final overdue = task.isOverdue;
+    final muted = scheme.onSurfaceVariant;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 6, color: color),
-              Checkbox(value: task.done, onChanged: (_) => onToggle()),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        task.title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          decoration:
-                              task.done ? TextDecoration.lineThrough : null,
-                          color: task.done ? theme.disabledColor : null,
-                        ),
-                      ),
-                      if (task.description.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            task.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall,
+    return Opacity(
+      opacity: task.done ? 0.6 : 1,
+      child: Card(
+        elevation: 0,
+        color: scheme.surfaceContainerLow,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: overdue ? scheme.error : scheme.outlineVariant,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 5, color: pColor),
+                Checkbox(
+                  value: task.done,
+                  shape: const CircleBorder(),
+                  onChanged: (_) => onToggle(),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          task.title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            decoration:
+                                task.done ? TextDecoration.lineThrough : null,
                           ),
                         ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          _Badge(text: task.category, color: Colors.blueGrey),
-                          _Badge(
-                              text: 'Prioridade ${task.priority.label}',
-                              color: color),
-                          if (task.dueDate != null)
-                            _Badge(
-                              text: formatDate(task.dueDate!),
-                              color: _overdue ? Colors.red : Colors.indigo,
-                              icon: Icons.event,
+                        if (task.description.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              task.description,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: muted),
                             ),
-                        ],
-                      ),
-                    ],
+                          ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 14,
+                          runSpacing: 4,
+                          children: [
+                            _Meta(
+                              icon: categoryIcon(task.category),
+                              text: task.category,
+                              color: muted,
+                            ),
+                            _Meta(
+                              icon: Icons.flag,
+                              text: task.priority.label,
+                              color: pColor,
+                            ),
+                            if (task.dueDate != null)
+                              _Meta(
+                                icon: overdue
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.event_outlined,
+                                text: overdue
+                                    ? 'Atrasada · ${friendlyDate(task.dueDate!)}'
+                                    : friendlyDate(task.dueDate!),
+                                color: overdue ? scheme.error : muted,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-            ],
+                const SizedBox(width: 12),
+              ],
+            ),
           ),
         ),
       ),
@@ -109,31 +158,29 @@ class TaskTile extends StatelessWidget {
   }
 }
 
-class _Badge extends StatelessWidget {
-  const _Badge({required this.text, required this.color, this.icon});
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.text, required this.color});
 
+  final IconData icon;
   final String text;
   final Color color;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 3),
-          ],
-          Text(text, style: TextStyle(fontSize: 11, color: color)),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12.5,
+            color: color,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

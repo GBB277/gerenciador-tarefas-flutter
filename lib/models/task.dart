@@ -54,6 +54,14 @@ class Task {
     this.dueDate,
   });
 
+  /// Pendente e com prazo anterior a hoje.
+  bool get isOverdue {
+    if (done || dueDate == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return dueDate!.isBefore(today);
+  }
+
   Task copyWith({
     String? title,
     String? description,
